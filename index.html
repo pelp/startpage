@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang='en'>
 <head>
-    <meta charset="UTF-8">
-    <meta lang="en">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset='UTF-8'>
+    <meta lang='en'>
+    <meta http-equiv='X-UA-Compatible' content='IE=edge'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
     <title>New Tab</title>
-    <!-- <script type="text/javascript" src="sites.json"></script> -->
+    <!-- <script type='text/javascript' src='sites.json'></script> -->
     <script>
         async function getICS(url) {
             const stored_ics = window.localStorage.getItem('ics');
@@ -35,7 +35,7 @@
         }
         function getICSLectures(ics, date) {
             const lectures = [];
-            const array = ics.split("BEGIN:VEVENT");
+            const array = ics.split('BEGIN:VEVENT');
             array.forEach((element, i) => {
                 if (i === 0) return;
                 const start = element.match(/DTSTART:(.*)\r\n/)[1];
@@ -78,14 +78,14 @@
             getNewQuote();
 
             // Populate links
-            const sites = window.localStorage.getItem("sites");
+            const sites = window.localStorage.getItem('sites');
             updateLinks(sites);
 
             // Render calendar view
             // Also fork this to the background incase the updateCalendars function takes long
             (async () => {
                 if (await updateCalendars(sites) === 0) {
-                    document.getElementsByTagName('body')[0].removeChild(document.getElementsByClassName('calendars')[0]);
+                    document.getElementsByClassName('calendars')[0].style.display = 'none';
                 }
                 monospaceify();
             })();
@@ -97,17 +97,17 @@
             window.onkeypress = handleKey;
 
             // Hide settings dialogue window at start
-            const checked = window.localStorage.getItem('show-settings') === "false" ? false : true;
-            const checkbox = document.getElementById("show-settings");
+            const checked = window.localStorage.getItem('show-settings') === 'false' ? false : true;
+            const checkbox = document.getElementById('show-settings');
             checkbox.checked = checked;
             if (!checked)
             {
-                const settings = document.getElementById("settings");
-                settings.style.visibility = "hidden";
+                const settings = document.getElementById('settings');
+                settings.style.visibility = 'hidden';
             }
 
             // Update settings from saved values
-            const textarea = document.getElementById("sites");
+            const textarea = document.getElementById('sites');
             
             textarea.value = sites;
             textarea.onkeydown = e => {
@@ -118,7 +118,7 @@
 
                 // set textarea value to: text before caret + tab + text after caret
                 e.target.value = e.target.value.substring(0, start) +
-                "    " + e.target.value.substring(end);
+                '    ' + e.target.value.substring(end);
 
                 // put caret at right position again
                 e.target.selectionStart = e.target.selectionEnd = start + 4;
@@ -128,43 +128,43 @@
                 e.stopPropagation();
             }
 
-            const slider = document.getElementById("hue");
+            const slider = document.getElementById('hue');
             const hueVal = hueLoad();
             hueShift(hueVal);
             slider.value = hueVal;
             slider.oninput = e => hueShift(e.target.value);
         }
         const getNewQuote = async () => {
-            const json = await fetch("https://api.quotable.io/random").then(response => response.json());
+            const json = await fetch('https://api.quotable.io/random').then(response => response.json());
             window.localStorage.setItem('quote-text', json.content);
             window.localStorage.setItem('quote-author', json.author);
         };
         function monospaceify()
         {
             const starting_value = 0x1D670;
-            const links = Array.from(document.getElementsByClassName("monospaced"))
+            const links = Array.from(document.getElementsByClassName('monospaced'))
             links.forEach(link => {
-                let output = ""
-                if (link.innerHTML !== "") return;
-                const input = link.getAttribute("value");
+                let output = ''
+                if (link.innerHTML !== '') return;
+                const input = link.getAttribute('value');
                 for (let i = 0; i < input.length; i++)
                 {
                     const charCode = input.charCodeAt(i)
                     if (charCode > 64 && charCode < 91)
                     {
-                        output += "&#"+(starting_value + charCode - 65);
+                        output += '&#'+(starting_value + charCode - 65);
                     }
                     else if (charCode > 96 && charCode < 123)
                     {
-                        output += "&#"+(starting_value + charCode - 71)
+                        output += '&#'+(starting_value + charCode - 71)
                     }
                     else if (charCode === 32)
                     {
-                        output += "&#8193"
+                        output += '&#8193'
                     }
                     else
                     {
-                        output += "&#"+charCode;
+                        output += '&#'+charCode;
                     }
                 }
                 link.innerHTML = output;
@@ -172,15 +172,15 @@
         }
         function renderQuote(text, author)
         {
-            const quote_container = document.getElementsByClassName("quote-wrapper")[0];
+            const quote_container = document.getElementsByClassName('quote-wrapper')[0];
             quote_container.innerHTML = '';
             let quote_text = document.createElement('div');
-            quote_text.className = "monospaced quote-text";
-            quote_text.setAttribute("value", text);
+            quote_text.className = 'monospaced quote-text';
+            quote_text.setAttribute('value', text);
 
             let quote_author = document.createElement('div');
-            quote_author.className = "monospaced quote-author";
-            quote_author.setAttribute("value", author);
+            quote_author.className = 'monospaced quote-author';
+            quote_author.setAttribute('value', author);
 
             quote_container.appendChild(quote_text);
             quote_container.appendChild(quote_author);
@@ -188,9 +188,10 @@
         function renderCalendar(items, id)
         {
             const calendarContainer = document.getElementById(id);
+            calendarContainer.innerHTML = "";
             if (items.length === 0) {
                 const empty = document.createElement('div');
-                empty.className = "monospaced";
+                empty.className = 'monospaced';
                 empty.setAttribute('value', 'Nothing!');
                 calendarContainer.appendChild(empty);
                 return;
@@ -198,29 +199,29 @@
             items.forEach((item, i) => {
                 if (i !== 0) {
                     const separator = document.createElement('div');
-                    separator.className = "calendar-separator";
+                    separator.className = 'calendar-separator';
                     calendarContainer.appendChild(separator);
                 }
                 const calendarItem = document.createElement('div');
-                calendarItem.className = "calendar-item";
+                calendarItem.className = 'calendar-item';
 
                 const start_time = document.createElement('div');
-                start_time.className = "calendar-item-time monospaced";
+                start_time.className = 'calendar-item-time monospaced';
                 start_time.setAttribute('value', `${item.start.getHours().toString().padStart(2, '0')}:${item.start.getMinutes().toString().padStart(2, '0')}`);
                 calendarItem.appendChild(start_time);
 
                 const summary = document.createElement('div');
-                summary.className = "calendar-item-name monospaced";
+                summary.className = 'calendar-item-name monospaced';
                 summary.setAttribute('value', item.summary);
                 calendarItem.appendChild(summary);
 
                 const room = document.createElement('div');
-                room.className = "calendar-item-room monospaced";
+                room.className = 'calendar-item-room monospaced';
                 room.setAttribute('value', item.room);
                 calendarItem.appendChild(room);
 
                 const end_time = document.createElement('div');
-                end_time.className = "calendar-item-time monospaced";
+                end_time.className = 'calendar-item-time monospaced';
                 end_time.setAttribute('value', `${item.end.getHours().toString().padStart(2, '0')}:${item.end.getMinutes().toString().padStart(2, '0')}`);
                 calendarItem.appendChild(end_time);
 
@@ -248,8 +249,12 @@
         }
         function handleKey(e)
         {
-            if (e.ctrlKey && e.code === 'KeyS') toggleSettings();
+            if (e.ctrlKey && e.code === 'KeyS') {
+                toggleSettings();
+                return;
+            }
             const sites = JSON.parse(window.localStorage.getItem('sites'));
+            if (sites['shortcuts'] === undefined) return;
             const shortcuts = sites['shortcuts'];
             if (!(e.key in shortcuts)) return;
             const site_id = shortcuts[e.key];
@@ -265,7 +270,7 @@
         }
         function toggleSettings()
         {
-            const settings = document.getElementById("settings");
+            const settings = document.getElementById('settings');
             if (settings.style.visibility === 'hidden')
             {
                 settings.style.visibility = 'visible';
@@ -273,7 +278,17 @@
             else
             {
                 saveSettings();
-                updateLinks(window.localStorage.getItem('sites'));
+                const sites = window.localStorage.getItem('sites');
+                updateCalendars(sites).then(r => {
+                    if (r === 0) {
+                        document.getElementsByClassName('calendars')[0].style.display = 'none';
+                    } 
+                    else {
+                        document.getElementsByClassName('calendars')[0].style.display = 'block';
+                    }
+                    monospaceify();
+                });
+                updateLinks(sites);
                 monospaceify();
                 settings.style.visibility = 'hidden';
             }
@@ -283,26 +298,27 @@
             if (settings_str === '') return;
             const settings = JSON.parse(settings_str);
             if (settings === null) return;
-            const link_container = document.getElementsByClassName("links")[0];
+            const link_container = document.getElementsByClassName('links')[0];
             link_container.innerHTML = '';
-            const sites = settings["links"];
+            if (settings['links'] === undefined) return;
+            const sites = settings['links'];
             if (sites === null) return;
             for (const [category, list] of Object.entries(sites)) {
                 let category_name = document.createElement('div');
                 let category_container = document.createElement('div');
 
-                category_container.className = "link-category";
+                category_container.className = 'link-category';
 
-                category_name.className = "monospaced link-category-name";
-                category_name.setAttribute("value", category);
+                category_name.className = 'monospaced link-category-name';
+                category_name.setAttribute('value', category);
                 category_container.appendChild(category_name);
 
                 for (const [site, url] of Object.entries(list))
                 {
                     let a = document.createElement('a');
-                    a.className = "monospaced link";
-                    a.setAttribute("value", site);
-                    a.setAttribute("href", url);
+                    a.className = 'monospaced link';
+                    a.setAttribute('value', site);
+                    a.setAttribute('href', url);
                     category_container.appendChild(a);
                 }
                 link_container.appendChild(category_container);
@@ -310,13 +326,12 @@
         }
         function saveSettings()
         {
-            const slider = document.getElementById("hue");
-            const textarea = document.getElementById("sites");
-            const checkbox = document.getElementById("show-settings")
+            const slider = document.getElementById('hue');
+            const textarea = document.getElementById('sites');
+            const checkbox = document.getElementById('show-settings')
             window.localStorage.setItem('hue', slider.value);
             window.localStorage.setItem('sites', textarea.value);
             window.localStorage.setItem('show-settings', checkbox.checked);
-            console.log(localStorage)
         }
         function hueShift(v) {
             const html = document.children[0];
@@ -337,7 +352,7 @@
             --separator-color: #ff80ce;
             --dot-color: #ffc2c2;
             --shadow-color: #d89cb9;
-            --image-url: url("image.jpg");
+            --image-url: url('image.jpg');
         }
         .image
         {
@@ -397,7 +412,7 @@
         }
         .quote-author::before
         {
-            content: "-";
+            content: '-';
             margin: 0 30px 0 0;
         }
         .separator,
@@ -435,7 +450,7 @@
         {
             display: grid;
             max-height: 500px;
-            grid-template-areas: "a a a";
+            grid-template-areas: 'a a a';
             row-gap: 40px;
             grid-auto-columns: 33%;
         }
@@ -473,8 +488,8 @@
             z-index: 10;
             display: grid;
             padding: 10px;
-            grid-template-areas: "a a a"
-                                 "c c c";
+            grid-template-areas: 'a a a'
+                                 'c c c';
             grid-template-rows: 90px 1fr;
             grid-template-columns: 1fr 1fr 1fr;
         }
