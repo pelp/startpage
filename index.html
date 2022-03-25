@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta lang="en">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Tab</title>
+    <!-- <script type="text/javascript" src="sites.json"></script> -->
+    <script>
+        async function getICS(url) {
+            const stored_ics = window.localStorage.getItem('ics');
+            if (stored_ics === null ||
+            url !== window.localStorage.getItem('icsUrl') ||
+            window.localStorage.getItem('icsExpireDate') - Date.now() < 0)
+            {
+                const r = await fetch(url).then(r => r.text());
+                window.localStorage.setItem('icsUrl', url);
+                window.localStorage.setItem('ics', r);
+                window.localStorage.setItem('icsExpireDate', Date.now() + 86400000)
+                return r;
+            }
+            return stored_ics;
+        }
+        function getICSDate(string) {
+            const year = string.substring(0, 4);
+            const month = string.substring(4, 6);
+            const date = string.substring(6, 8);
+            
+            const hours = string.substring(9, 11);
+            const minutes = string.substring(11, 13);
+            const seconds = string.substring(13, 15);
+
+            return new Date(`${year}-${month}-${date}T${hours}:${minutes}:${seconds}Z`);
+        }
+        function getICSLectures(ics, date) {
+            const lectures = [];
+            const array = ics.split("BEGIN:VEVENT");
+            array.forEach((element, i) => {
+                if (i === 0) return;
+                const start = element.match(/DTSTART:(.*)\r\n/)[1];
+                const start_date = getICSDate(start);
+                if (start_date.getDate() !== date.getDate()) return;
+                const end = element.match(/DTEND:(.*)\r\n/)[1];
+                const end_date = getICSDate(end);
+                const summary = element.match(/SUMMARY:(.*)\r\n/)[1].replace('\\', '');
+                const location = element.match(/LOCATION:(.*)\r\n/)[1];
+                const room = location.split('.')[0];
+                lectures.push({
+                    summary: summary,
+                    start: start_date,
+                    end: end_date,
+                    room: room
+                });
+            });
+            lectures.sort((a, b) => a.start.getTime() - b.start.getTime());
+            return lectures;
+        }
+        window.onload = async () => {
+            // Render quote if quote is available, otherwise,
+            // get new quote and render
+            if (window.localStorage.getItem('quote-text') === null)
+            {
+                getNewQuote().then(() => {
+                    renderQuote(window.localStorage.getItem('quote-text'),
+                                window.localStorage.getItem('quote-author'));
+                    // Make sure the font's are rendered
+                    monospaceify();
+                });
+            }
+            else
+            {
+                renderQuote(window.localStorage.getItem('quote-text'),
+                            window.localStorage.getItem('quote-author'));
+            }
+
+            // Get quote
+            getNewQuote();
+
+            // Populate links
+            const sites = window.localStorage.getItem("sites");
+            updateLinks(sites);
+
+            // Render calendar view
+            // Also fork this to the background incase the updateCalendars function takes long
+            (async () => {
+                if (await updateCalendars(sites) === 0) {
+                    document.getElementsByTagName('body')[0].removeChild(document.getElementsByClassName('calendars')[0]);
+                }
+                monospaceify();
+            })();
+
+            // Make monospaced
+            monospaceify();
+
+            // Set keypress handler
+            window.onkeypress = handleKey;
+
+            // Hide settings dialogue window at start
+            const checked = window.localStorage.getItem('show-settings') === "false" ? false : true;
+            const checkbox = document.getElementById("show-settings");
+            checkbox.checked = checked;
+            if (!checked)
+            {
+                const settings = document.getElementById("settings");
+                settings.style.visibility = "hidden";
+            }
+
+            // Update settings from saved values
+            const textarea = document.getElementById("sites");
+            
+            textarea.value = sites;
+            textarea.onkeydown = e => {
+                if (e.key !== 'Tab') return;
+                e.preventDefault();
+                var start = e.target.selectionStart;
+                var end = e.target.selectionEnd;
+
+                // set textarea value to: text before caret + tab + text after caret
+                e.target.value = e.target.value.substring(0, start) +
+                "    " + e.target.value.substring(end);
+
+                // put caret at right position again
+                e.target.selectionStart = e.target.selectionEnd = start + 4;
+            }
+            textarea.onkeypress = e => {
+                if (e.ctrlKey && e.code === 'KeyS') return;
+                e.stopPropagation();
+            }
+
+            const slider = document.getElementById("hue");
+            const hueVal = hueLoad();
+            hueShift(hueVal);
+            slider.value = hueVal;
+            slider.oninput = e => hueShift(e.target.value);
+        }
+        const getNewQuote = async () => {
+            const json = await fetch("https://api.quotable.io/random").then(response => response.json());
+            window.localStorage.setItem('quote-text', json.content);
+            window.localStorage.setItem('quote-author', json.author);
+        };
+        function monospaceify()
+        {
+            const starting_value = 0x1D670;
+            const links = Array.from(document.getElementsByClassName("monospaced"))
+            links.forEach(link => {
+                let output = ""
+                if (link.innerHTML !== "") return;
+                const input = link.getAttribute("value");
+                for (let i = 0; i < input.length; i++)
+                {
+                    const charCode = input.charCodeAt(i)
+                    if (charCode > 64 && charCode < 91)
+                    {
+                        output += "&#"+(starting_value + charCode - 65);
+                    }
+                    else if (charCode > 96 && charCode < 123)
+                    {
+                        output += "&#"+(starting_value + charCode - 71)
+                    }
+                    else if (charCode === 32)
+                    {
+                        output += "&#8193"
+                    }
+                    else
+                    {
+                        output += "&#"+charCode;
+                    }
+                }
+                link.innerHTML = output;
+            });
+        }
+        function renderQuote(text, author)
+        {
+            const quote_container = document.getElementsByClassName("quote-wrapper")[0];
+            quote_container.innerHTML = '';
+            let quote_text = document.createElement('div');
+            quote_text.className = "monospaced quote-text";
+            quote_text.setAttribute("value", text);
+
+            let quote_author = document.createElement('div');
+            quote_author.className = "monospaced quote-author";
+            quote_author.setAttribute("value", author);
+
+            quote_container.appendChild(quote_text);
+            quote_container.appendChild(quote_author);
+        }
+        function renderCalendar(items, id)
+        {
+            const calendarContainer = document.getElementById(id);
+            if (items.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = "monospaced";
+                empty.setAttribute('value', 'Nothing!');
+                calendarContainer.appendChild(empty);
+                return;
+            }
+            items.forEach((item, i) => {
+                if (i !== 0) {
+                    const separator = document.createElement('div');
+                    separator.className = "calendar-separator";
+                    calendarContainer.appendChild(separator);
+                }
+                const calendarItem = document.createElement('div');
+                calendarItem.className = "calendar-item";
+
+                const start_time = document.createElement('div');
+                start_time.className = "calendar-item-time monospaced";
+                start_time.setAttribute('value', `${item.start.getHours().toString().padStart(2, '0')}:${item.start.getMinutes().toString().padStart(2, '0')}`);
+                calendarItem.appendChild(start_time);
+
+                const summary = document.createElement('div');
+                summary.className = "calendar-item-name monospaced";
+                summary.setAttribute('value', item.summary);
+                calendarItem.appendChild(summary);
+
+                const room = document.createElement('div');
+                room.className = "calendar-item-room monospaced";
+                room.setAttribute('value', item.room);
+                calendarItem.appendChild(room);
+
+                const end_time = document.createElement('div');
+                end_time.className = "calendar-item-time monospaced";
+                end_time.setAttribute('value', `${item.end.getHours().toString().padStart(2, '0')}:${item.end.getMinutes().toString().padStart(2, '0')}`);
+                calendarItem.appendChild(end_time);
+
+                calendarContainer.appendChild(calendarItem);
+            });
+        }
+        async function updateCalendars(settings_str)
+        {
+            if (settings_str === '') return 0;
+            const settings = JSON.parse(settings_str);
+            if (settings === null) return 0;
+            if (settings['calendar'] === undefined) return 0;
+            const calendar = settings['calendar'];
+            if (calendar['url'] === undefined) return 0;
+            const url = calendar['url'];
+            
+            const ics = await getICS(url);
+            const today = new Date();
+            const tomorrow = new Date(today.getTime() + 86400000);
+            const today_lectures = getICSLectures(ics, today);
+            const tomorrow_lectures = getICSLectures(ics, tomorrow);
+            renderCalendar(today_lectures, 'today-calendar-item-container');
+            renderCalendar(tomorrow_lectures, 'tomorrow-calendar-item-container');
+            return 1;
+        }
+        function handleKey(e)
+        {
+            if (e.ctrlKey && e.code === 'KeyS') toggleSettings();
+            const sites = JSON.parse(window.localStorage.getItem('sites'));
+            const shortcuts = sites['shortcuts'];
+            if (!(e.key in shortcuts)) return;
+            const site_id = shortcuts[e.key];
+            let url = undefined;
+            for (const [key, entry] of Object.entries(sites['links'])) {
+                if (site_id in entry) {
+                    url = entry[site_id];
+                    break;
+                }
+            }
+            if (url=== undefined) return;
+            window.location.assign(url);
+        }
+        function toggleSettings()
+        {
+            const settings = document.getElementById("settings");
+            if (settings.style.visibility === 'hidden')
+            {
+                settings.style.visibility = 'visible';
+            }
+            else
+            {
+                saveSettings();
+                updateLinks(window.localStorage.getItem('sites'));
+                monospaceify();
+                settings.style.visibility = 'hidden';
+            }
+        }
+        function updateLinks(settings_str)
+        {
+            if (settings_str === '') return;
+            const settings = JSON.parse(settings_str);
+            if (settings === null) return;
+            const link_container = document.getElementsByClassName("links")[0];
+            link_container.innerHTML = '';
+            const sites = settings["links"];
+            if (sites === null) return;
+            for (const [category, list] of Object.entries(sites)) {
+                let category_name = document.createElement('div');
+                let category_container = document.createElement('div');
+
+                category_container.className = "link-category";
+
+                category_name.className = "monospaced link-category-name";
+                category_name.setAttribute("value", category);
+                category_container.appendChild(category_name);
+
+                for (const [site, url] of Object.entries(list))
+                {
+                    let a = document.createElement('a');
+                    a.className = "monospaced link";
+                    a.setAttribute("value", site);
+                    a.setAttribute("href", url);
+                    category_container.appendChild(a);
+                }
+                link_container.appendChild(category_container);
+            }
+        }
+        function saveSettings()
+        {
+            const slider = document.getElementById("hue");
+            const textarea = document.getElementById("sites");
+            const checkbox = document.getElementById("show-settings")
+            window.localStorage.setItem('hue', slider.value);
+            window.localStorage.setItem('sites', textarea.value);
+            window.localStorage.setItem('show-settings', checkbox.checked);
+            console.log(localStorage)
+        }
+        function hueShift(v) {
+            const html = document.children[0];
+            html.style.filter = 'hue-rotate(' + v + 'deg)'
+        }
+        function hueLoad()
+        {
+            return window.localStorage.getItem('hue');
+        }
+    </script>
+    <style>
+        :root
+        {
+            --wrapper-color: #ffe0e6;
+            --paper-color: #fff0f7;
+            --body-color: #ffe0ef;
+            --text-color: #555;
+            --separator-color: #ff80ce;
+            --dot-color: #ffc2c2;
+            --shadow-color: #d89cb9;
+            --image-url: url("image.jpg");
+        }
+        .image
+        {
+            background-image: var(--image-url);
+            background-size: cover;
+            background-color: red;
+            width: 100%;
+            height: 500px;
+        }
+        html {
+            height: 100%;
+        }
+        body
+        {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 100%;
+            background-color: var(--body-color);
+        }
+        .content-wrapper
+        {
+            width: 800px;
+        }
+        .window
+        {
+            box-sizing: border-box;
+            padding: 20px 20px;
+            background-color: var(--wrapper-color);
+            box-shadow: 10px 10px var(--shadow-color);
+            border: 4px dotted var(--shadow-color);
+            border-radius: 5px;
+        }
+        .quote-wrapper
+        {
+            width: 100%;
+            padding: 100px 100px 60px 100px;            
+            background-color: var(--paper-color);
+            background-image:  radial-gradient(var(--dot-color) 1px, transparent 1px), radial-gradient(var(--dot-color) 1px, var(--paper-color) 1px);
+            background-size: 20px 20px;
+            background-position: 0 0,10px 10px;
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            flex-direction: column;
+            text-shadow: .5px .5px black, -1px -1px var(--paper-color);
+            font-style: italic;
+            border-radius: inherit;
+        }
+        .quote-author
+        {
+            margin: 40px 0 0 0;
+            align-self: flex-end;
+            font-style: italic;
+        }
+        .quote-author::before
+        {
+            content: "-";
+            margin: 0 30px 0 0;
+        }
+        .separator,
+        .calendar-separator
+        {
+            margin: 25px 0;
+            content: '';
+            height: 2px;
+            background-color: var(--separator-color);
+            width: 80%;
+            position: relative;
+            left: 10%;
+            display: inline-block;
+            border-radius: 2px;
+        }
+
+        .calendar-separator {
+            margin: 5px 0;
+        }
+
+        .monospaced
+        {
+            color: var(--text-color);
+        }
+        .links,
+        .link,
+        .link:visited
+        {
+            text-decoration: none;
+            font-family: serif;
+            font-size: 14pt;
+            display: block;
+        }
+        .links
+        {
+            display: grid;
+            max-height: 500px;
+            grid-template-areas: "a a a";
+            row-gap: 40px;
+            grid-auto-columns: 33%;
+        }
+        .link-category
+        {
+            width: max-content;
+        }
+        .link-category-name
+        {
+            display: block;
+            font-weight: bold;
+            font-size: 16pt;
+            margin: 0 0 10px 0;
+            width: max-content;
+            border-bottom: 2px solid var(--text-color);
+        }
+        .link, 
+        .link:visited
+        {
+            width: max-content;
+            transition: padding-left 100ms ease-in-out;
+        }
+        .link:hover {
+            text-decoration: underline;
+        }
+        .link:focus {
+            padding-left: 10px;
+        }
+        #settings
+        {
+            width: 100%;
+            max-width: 700px;
+            height: 500px;
+            position: fixed;
+            z-index: 10;
+            display: grid;
+            padding: 10px;
+            grid-template-areas: "a a a"
+                                 "c c c";
+            grid-template-rows: 90px 1fr;
+            grid-template-columns: 1fr 1fr 1fr;
+        }
+        .setting-name
+        {
+            display: block;
+            font-weight: bold;
+            text-align: center;
+            margin: 0 0 5px 0;
+        }
+        .setting
+        {
+            max-width: max-content;
+            padding: 10px;
+            margin: 10px;
+            border: 1px solid var(--shadow-color);
+        }
+        .big-setting
+        {
+            grid-area: c;
+        }
+        textarea
+        {
+            width: 626px;
+            height: 308px;
+            resize: none;
+        }
+        .calendar-item {
+            min-width: 200px;
+            font-family: monospace;
+        }
+        .calendar-item:after {
+            margin-left: 5px;
+        }
+        .calendar-item-time::after {
+            margin-left: 3px;
+        }
+        .calendar-item-time:first-child::after {
+            content: '─╮';
+        }
+        .calendar-item-time:last-child::after {
+            content: '─╯';
+        }
+        .calendar-item-name,
+        .calendar-item-room {
+            margin: 5px;
+            margin-left: 30px;
+        }
+        .calendar-item-room:before {
+            content: '╰';
+            margin-right: 5px;
+        }
+        .calendar-item-container {
+            background-color: var(--paper-color);
+            background-image:  radial-gradient(var(--dot-color) 1px, transparent 1px), radial-gradient(var(--dot-color) 1px, var(--paper-color) 1px);
+            background-size: 20px 20px;
+            background-position: 0 0,10px 10px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .calendar-wrapper {
+            margin-left: 50px;
+            font-size: 12pt;
+        }
+        .calendar-wrapper:not(calendar-wrapper:first-child) {
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div id="settings" class="window">
+        <div class="setting">
+            <a class="monospaced setting-name" value="Show settings"></a>
+            <input type="checkbox" id="show-settings">
+        </div>
+        <div class="setting">
+            <a class="monospaced setting-name" value="Hue shift"></a>
+            <input type="range" name="hue" id="hue" min=0 max=360 value=0>
+        </div>
+        <div class="setting">
+            <a class="monospaced setting-name" value="Ctrl+Shift+S to open/close"></a>
+        </div>
+        <div class="setting big-setting">
+            <a class="monospaced setting-name" value="Content"></a>
+            <textarea id="sites"></textarea>
+        </div>
+    </div>
+    <div class="window content-wrapper">
+        <div class="quote-wrapper"></div>
+        <div class="separator"></div>
+        <div class="links"></div>
+    </div>
+    <div class="calendars">
+        <div class="window calendar-wrapper" id="calendar-container">
+            <a class="monospaced link-category-name" value="Today"></a>
+            <div class="calendar-item-container" id="today-calendar-item-container"></div>
+        </div>
+        <div class="window calendar-wrapper" id="calendar-container">
+            <a class="monospaced link-category-name" value="Tomorrow"></a>
+            <div class="calendar-item-container" id="tomorrow-calendar-item-container"></div>
+        </div>
+    </div>
+</body>
+</html>
