@@ -11,7 +11,7 @@
         function getSetting(evnt, key) {
             const lines = evnt.split("\r\n");
             for(let i = 0; i < lines.length; i++) {
-                const line = lines[i];
+                const line = lines[i].replace('\\', '');
                 if (!line.startsWith(key)) continue;
                 const data = line.split(':');
                 try {
