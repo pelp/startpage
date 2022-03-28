@@ -8,6 +8,22 @@
     <title>New Tab</title>
     <!-- <script type='text/javascript' src='sites.json'></script> -->
     <script>
+        function getSetting(evnt, key) {
+            const lines = evnt.split("\r\n");
+            for(let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                if (!line.startsWith(key)) continue;
+                const data = line.split(':');
+                try {
+                    const params = data[0].split(';')[1];
+                    return {data: data[1],params: params};
+                }
+                catch(e)
+                {
+                    return {data: data[1]};
+                }
+            }
+        }
         async function getICS(url) {
             const stored_ics = window.localStorage.getItem('ics');
             if (stored_ics === null ||
@@ -38,13 +54,13 @@
             const array = ics.split('BEGIN:VEVENT');
             array.forEach((element, i) => {
                 if (i === 0) return;
-                const start = element.match(/DTSTART:(.*)\r\n/)[1];
+                const start = getSetting(element, 'DTSTART').data;
                 const start_date = getICSDate(start);
                 if (start_date.getDate() !== date.getDate()) return;
-                const end = element.match(/DTEND:(.*)\r\n/)[1];
+                const end = getSetting(element, 'DTEND').data;
                 const end_date = getICSDate(end);
-                const summary = element.match(/SUMMARY:(.*)\r\n/)[1].replace('\\', '');
-                const location = element.match(/LOCATION:(.*)\r\n/)[1];
+                const summary = getSetting(element, 'SUMMARY').data;
+                const location = getSetting(element, 'LOCATION').data;
                 const room = location.split('.')[0];
                 lectures.push({
                     summary: summary,
